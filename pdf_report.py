@@ -290,9 +290,15 @@ def render_report_pdf(
     if stamp_image is not None:
         stamp_path = Path(stamp_image)
         if stamp_path.exists():
-            # 上沿对齐「只对本次…负责」行上沿；左沿对齐 B 列右沿（= C 列左沿）
-            stamp_x0 = col_x[2]
-            stamp_y0 = foot_y0
+            # 与 Excel 一致：上沿对齐第9行（第4条数据行）中线；水平中心对齐 C 列右沿
+            if len(data_ys) > 4:
+                row9_mid = (data_ys[3] + data_ys[4]) / 2.0
+            elif len(data_ys) > 3:
+                row9_mid = data_ys[3] + row_h / 2.0
+            else:
+                row9_mid = header_y1 + 3 * row_h + row_h / 2.0
+            stamp_x0 = col_x[3] - stamp_width / 2.0  # C 列右沿 = col_x[3]
+            stamp_y0 = row9_mid
             stamp_rect = fitz.Rect(
                 stamp_x0, stamp_y0, stamp_x0 + stamp_width, stamp_y0 + stamp_width
             )

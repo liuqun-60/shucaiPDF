@@ -369,14 +369,12 @@ def stamp_excel(
     stamp_image: str | Path,
     output_xlsx: str | Path,
     stamp_size_px: int = 120,
-    anchor_cell: str | None = None,
 ) -> Path:
-    """红章定位：上沿对齐「只对本次…负责」行上沿；左沿对齐 B 列右沿（即 C 列左沿）。"""
+    """红章定位：上沿对齐第9行垂直中线；水平中心对齐 C 列右沿。"""
     try:
         from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
         from openpyxl.drawing.xdr import XDRPositiveSize2D
-        from openpyxl.utils import coordinate_to_tuple
-        from openpyxl.utils.units import pixels_to_EMU
+        from openpyxl.utils.units import pixels_to_EMU, points_to_pixels
 
         xlsx_path = Path(xlsx_path)
         stamp_image = Path(stamp_image)
@@ -387,26 +385,37 @@ def stamp_excel(
         wb = load_workbook(xlsx_path)
         ws = wb.active
 
-        if anchor_cell is None:
-            footer_row = None
-            for r in range(1, ws.max_row + 1):
-                val = ws.cell(r, 1).value
-                if val and "只对本次" in str(val):
-                    footer_row = r
-                    break
-            # C 列左沿 = B 列右沿；行取页脚行，rowOff=0 即与该行上沿对齐
-            anchor_cell = f"C{footer_row}" if footer_row else "C26"
+        def _col_width_px(letter: str) -> int:
+            w = ws.column_dimensions[letter].width
+            if w is None:
+                w = 8.43
+            return max(1, int(w * 7 + 5))
+
+        # 第9行垂直中线 → 章的上沿
+        row9_h = ws.row_dimensions[9].height or 22.65
+        row_off_px = max(0, int(points_to_pixels(row9_h) / 2))
+
+        # 水平中心对齐 C 列右沿 → 左上角落在 C 列内：C宽 - 章宽/2
+        c_w = _col_width_px("C")
+        half = stamp_size_px // 2
+        col_off_px = c_w - half
+        if col_off_px >= 0:
+            col_idx = 2  # C
+        else:
+            # 章较宽时向左借入 B 列
+            b_w = _col_width_px("B")
+            col_idx = 1  # B
+            col_off_px = b_w + col_off_px
 
         img = XLImage(str(stamp_image))
         img.width = stamp_size_px
         img.height = stamp_size_px
 
-        row_1based, col_1based = coordinate_to_tuple(anchor_cell)
         marker = AnchorMarker(
-            col=col_1based - 1,
-            colOff=pixels_to_EMU(0),
-            row=row_1based - 1,
-            rowOff=pixels_to_EMU(0),
+            col=col_idx,
+            colOff=pixels_to_EMU(col_off_px),
+            row=8,  # 第9行（0-based）
+            rowOff=pixels_to_EMU(row_off_px),
         )
         img.anchor = OneCellAnchor(
             _from=marker,
